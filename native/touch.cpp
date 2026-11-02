@@ -1375,7 +1375,7 @@ enum SkinPart : int { kFire, kAim, kMode, kReload, kCrouch, kMelee, kUse, kGrena
 constexpr float kSkinCellW = 192, kSkinCellH = 209;
 constexpr int kSkinColumns = 6;
 constexpr const char* kSkinFile = "skins/buttons.png";  // in the APK's assets
-ImTextureID g_skin_texture = nullptr;  // render thread
+ImTextureID g_skin_texture{};  // render thread
 float g_skin_w = 1, g_skin_h = 1;      // the atlas, pixels
 constexpr ImU32 kSkinInk = IM_COL32(178, 190, 170, 255);  // the skin's light grey green, for the icons it has none of
 
@@ -1642,7 +1642,7 @@ bool LoadSkin(std::vector<uint8_t>& rgba, uint32_t& w, uint32_t& h) {
     return true;
 }
 
-void SetSkinTexture(uint64_t texture) { g_skin_texture = ImTextureID(texture); }
+void SetSkinTexture(uint64_t texture) { g_skin_texture = (ImTextureID)texture; }
 
 // the controls over the screen to drag where they go, Done or Cancel in the bar at the top, Android's back cancels
 void EditLayout() {
