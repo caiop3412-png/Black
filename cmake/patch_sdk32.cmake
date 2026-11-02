@@ -1,32 +1,54 @@
 # armv7 (32-bit) fixes for the SDK's portable runtime, applied in place after the SDK is found. Safe to run again:
 # a file that no longer has the original text is left alone.
 #
-# runtime/gpu/shaders.cpp Hash(): a 64 x 64 -> 128 bit multiply through unsigned __int128, which clang has only on
-# 64-bit targets. Same result, from four 32 x 32 -> 64 bit products.
-function(patch_sdk32 SDK_DIR)
-    set(file "${SDK_DIR}/runtime/gpu/shaders.cpp")
+# clang has no unsigned __int128 on 32-bit targets. The SDK uses it twice, both for the high half of a 64 x 64 bit
+# multiply; both are rewritten with four 32 x 32 -> 64 bit products (same result).
+
+# the high 64 bits of x * y, as statements that define `hi` (needs x, y as uint64_t)
+set(_MULHI_BODY "uint64_t a0 = uint32_t(@X@), a1 = @X@ >> 32, b0 = uint32_t(@Y@), b1 = @Y@ >> 32;
+    uint64_t p00 = a0 * b0, p01 = a0 * b1, p10 = a1 * b0, p11 = a1 * b1;
+    uint64_t mid = (p00 >> 32) + uint32_t(p01) + uint32_t(p10);
+    uint64_t lo = (mid << 32) | uint32_t(p00);
+    uint64_t hi = p11 + (p01 >> 32) + (p10 >> 32) + (mid >> 32);")
+
+function(_patch_sdk32_file file old new what)
     if(NOT EXISTS "${file}")
         message(WARNING "patch_sdk32: ${file} not found, the SDK layout changed")
         return()
     endif()
     file(READ "${file}" text)
-    if(NOT text MATCHES "unsigned __int128")
-        return()
+    if(NOT text MATCHES "__int128")
+        return()   # already patched
     endif()
-    set(new "uint64_t a0 = uint32_t(a), a1 = a >> 32, b0 = uint32_t(b), b1 = b >> 32;
-        uint64_t p00 = a0 * b0, p01 = a0 * b1, p10 = a1 * b0, p11 = a1 * b1;
-        uint64_t mid = (p00 >> 32) + uint32_t(p01) + uint32_t(p10);
-        uint64_t lo = (mid << 32) | uint32_t(p00);
-        uint64_t hi = p11 + (p01 >> 32) + (p10 >> 32) + (mid >> 32);
-        return lo ^ hi;")
-    string(REGEX REPLACE
-        "unsigned __int128 r = static_cast<unsigned __int128>\\(a\\) \\* b;[ \t\r\n]*return uint64_t\\(r\\) \\^ uint64_t\\(r >> 64\\);"
-        "${new}" patched "${text}")
-    if(patched STREQUAL text)
-        message(FATAL_ERROR "patch_sdk32: the __int128 in ${file} is not the code this patch knows; look at Hash()")
+    string(FIND "${text}" "${old}" pos)
+    if(pos EQUAL -1)
+        message(FATAL_ERROR "patch_sdk32: the __int128 in ${file} is not the code this patch knows; look at ${what}")
     endif()
+    string(REPLACE "${old}" "${new}" patched "${text}")
     file(WRITE "${file}" "${patched}")
-    message(STATUS "patch_sdk32: shaders.cpp Hash() without __int128")
+    message(STATUS "patch_sdk32: ${what} without __int128")
+endfunction()
+
+function(patch_sdk32 SDK_DIR)
+    # runtime/gpu/shaders.cpp Hash(): xor of the two halves of a * b
+    string(REPLACE "@X@" "a" body "${_MULHI_BODY}")
+    string(REPLACE "@Y@" "b" body "${body}")
+    _patch_sdk32_file("${SDK_DIR}/runtime/gpu/shaders.cpp"
+        "unsigned __int128 r = static_cast<unsigned __int128>(a) * b;
+        return uint64_t(r) ^ uint64_t(r >> 64);"
+        "${body}
+        return lo ^ hi;"
+        "Hash() in shaders.cpp")
+
+    # runtime/kernel/rtl.cpp RtlExtendedMagicDivide: (u * m) >> 64, then >> shift
+    string(REPLACE "@X@" "u" body "${_MULHI_BODY}")
+    string(REPLACE "@Y@" "m" body "${body}")
+    _patch_sdk32_file("${SDK_DIR}/runtime/kernel/rtl.cpp"
+        "uint64_t q = uint64_t((unsigned __int128)u * m >> 64) >> (a[4] & 0xFF);"
+        "${body}
+    uint64_t q = hi >> (a[4] & 0xFF);"
+        "RtlExtendedMagicDivide in rtl.cpp")
+
     # anything else in the SDK that needs 128 bits fails to build on its own; say where
     file(GLOB_RECURSE others "${SDK_DIR}/runtime/*.cpp" "${SDK_DIR}/runtime/*.h")
     foreach(f IN LISTS others)
