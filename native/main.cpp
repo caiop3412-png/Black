@@ -18,6 +18,7 @@
 #include <mutex>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <thread>
 
 #include <imgui.h>
@@ -126,6 +127,8 @@ const char* kModes[] = {"fullscreen", "borderless", "windowed"};
 // the defaults a settings file was written under: 2 has the frame rate unlimited and vsync off, which a file from
 // before takes once, its player's own choices kept from then on
 constexpr int kDefaults = 2;
+// overlay_defaults 1: the fps counter is on; a file from before takes it once
+constexpr int kOverlayDefaults = 1;
 
 std::filesystem::path File() { return ExeDir() / kGame.settings; }
 
@@ -139,7 +142,8 @@ toml::table Table() {
                   {"vsync", s.vsync},
                   {"anisotropic_filtering", int64_t(s.aniso)},
                   {"join_ip", s.join_ip},
-                  {"defaults", int64_t(kDefaults)}};
+                  {"defaults", int64_t(kDefaults)},
+                  {"overlay_defaults", int64_t(kOverlayDefaults)}};
     for (const Option& o : kGame.options) {
         if (o.flag) t.insert(o.key, *o.flag);
         else t.insert(o.key, int64_t(*o.value));
@@ -194,6 +198,9 @@ void Load() {
         if (o.flag) *o.flag = t[o.key].value_or(*o.flag);
         else *o.value = t[o.key].value_or(*o.value);
     }
+    if (t["overlay_defaults"].value_or(int64_t(0)) < kOverlayDefaults)
+        for (const Option& o : kGame.options)
+            if (o.flag && std::string_view(o.key) == "fps_counter") *o.flag = true;
     if (kGame.load) kGame.load(&t);
 }
 

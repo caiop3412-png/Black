@@ -13,7 +13,7 @@ inline constexpr const char* kLanguages[] = {"int", "fra", "deu", "ita", "esp", 
 
 struct Options {
     bool skip_intros = false;  // logos at boot and the film after pressing start
-    bool fps_counter = false;
+    bool fps_counter = true;  // the phone port shows it from the first start
     uint32_t fmv_scale = 0;  // 4:3 films on a wider screen: 0 fill it, top and bottom cut; 1 kept 4:3
     // a look over the frame: 0 none, 1 and 2 a CRT (light, strong), 3 sharpen, 4 vibrant, 5 noir, 6 sepia,
     // 7 night vision, 8 VHS

@@ -110,6 +110,8 @@ if(CMAKE_SIZEOF_VOID_P EQUAL 4)
     target_compile_definitions(main PRIVATE _FILE_OFFSET_BITS=64)
     # the NDK's fortified recvfrom() makes the SDK's Winsock shim (harness/compat/winsock2.h) ambiguous on 32 bits
     target_compile_options(main PRIVATE -U_FORTIFY_SOURCE)
+    # scheduling for the Cortex-A53/A73 cores most 32-bit phones have; same instruction set, so it runs everywhere
+    target_compile_options(main PRIVATE -mtune=cortex-a53)
     # Vulkan handles are 64-bit integers here, ImGui's default ImTextureID (void*) is 32 bits: a descriptor set would be cut
     target_compile_definitions(main PRIVATE ImTextureID=__UINT64_TYPE__)
 endif()

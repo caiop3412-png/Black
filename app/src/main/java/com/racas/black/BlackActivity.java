@@ -52,6 +52,11 @@ public class BlackActivity extends SDLActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        // steadier clocks when the phone heats up, on devices that support it (a no-op elsewhere)
+        try {
+            getWindow().setSustainedPerformanceMode(true);
+        } catch (RuntimeException ignored) {
+        }
         for (View v : new View[] {mSurface, mLayout})
             if (v != null) v.setOnCapturedPointerListener(BlackActivity::onCapturedPointer);
         File own = getExternalFilesDir(null);
