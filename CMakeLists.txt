@@ -108,6 +108,8 @@ target_compile_options(main PRIVATE -fno-strict-aliasing -fsigned-char)
 # 32-bit ABIs (armeabi-v7a): off_t is 32 bits unless asked, and the disc image is larger than 2 GB
 if(CMAKE_SIZEOF_VOID_P EQUAL 4)
     target_compile_definitions(main PRIVATE _FILE_OFFSET_BITS=64)
+    # the NDK's fortified recvfrom() makes the SDK's Winsock shim (harness/compat/winsock2.h) ambiguous on 32 bits
+    target_compile_options(main PRIVATE -U_FORTIFY_SOURCE)
 endif()
 set(HOST_SOURCES ${RUNTIME_SOURCES} ${GAME_HOST_SOURCES} ${ANDROID_SOURCES})
 set_source_files_properties(${HOST_SOURCES} PROPERTIES COMPILE_OPTIONS "-include;${NATIVE}/compat/crt.h")
