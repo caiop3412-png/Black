@@ -27,6 +27,12 @@ else()
     set(SDK ${xbe_sdk_SOURCE_DIR})
 endif()
 
+# 32-bit ABIs (armeabi-v7a): fixes for the SDK's runtime, see cmake/patch_sdk32.cmake
+if(CMAKE_SIZEOF_VOID_P EQUAL 4)
+    include(${REPO}/cmake/patch_sdk32.cmake)
+    patch_sdk32(${SDK})
+endif()
+
 # the recompiled code and the xbe it came from
 set(XBE_GENERATED ${REPO}/generated/game CACHE PATH "the recompiled code of default.xbe")
 set(XBE_IMAGE ${REPO}/assets/default.xbe CACHE FILEPATH "the xbe it was recompiled from")

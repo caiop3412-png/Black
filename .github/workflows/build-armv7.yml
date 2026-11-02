@@ -50,8 +50,29 @@ jobs:
         run: echo "GRADLE_ARGS=-PversionCode=${{ github.run_number }} -PversionName=1.0-armv7" >> "$GITHUB_ENV"
 
       - name: Build
-        shell: cmd
-        run: call build.bat
+        shell: pwsh
+        run: |
+          cmd /c build.bat 2>&1 | Tee-Object -FilePath build.log
+          exit $LASTEXITCODE
+
+      - name: Errors
+        if: always()
+        shell: pwsh
+        run: |
+          if (-not (Test-Path build.log)) { exit 0 }
+          '### Erros do build' | Out-File -Append $env:GITHUB_STEP_SUMMARY
+          '```' | Out-File -Append $env:GITHUB_STEP_SUMMARY
+          Select-String -Path build.log -Pattern 'error:|fatal error|FAILED:|undefined (symbol|reference)|patch_sdk32' |
+            Select-Object -First 80 | ForEach-Object { $_.Line.Trim() } | Out-File -Append $env:GITHUB_STEP_SUMMARY
+          '```' | Out-File -Append $env:GITHUB_STEP_SUMMARY
+
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: build-log
+          path: build.log
+          if-no-files-found: ignore
+          retention-days: 3
 
       - name: Check the ABI
         shell: bash

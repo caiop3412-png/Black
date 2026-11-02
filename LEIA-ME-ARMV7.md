@@ -7,6 +7,7 @@ Mudancas em relacao ao repo original (RanggaCasper/Black-Android, MIT):
 - `CMakeLists.txt`: `_FILE_OFFSET_BITS=64` nos builds de 32 bits (ISO maior que 2 GB, offsets de arquivo).
 - `UpdateChecker.java`: sem checagem de update por padrao (o repo original so publica APK arm64).
 - `.github/workflows/build-armv7.yml`: workflow manual com o SEU xbe; so gera artifact, nao publica release.
+- `cmake/patch_sdk32.cmake`: corrige o SDK em builds de 32 bits (`__int128` em `runtime/gpu/shaders.cpp`), chamado pelo `CMakeLists.txt`.
 - `tools/preparar_xbe.sh`: tira o `default.xbe` da sua ISO e criptografa.
 
 ## Antes de tudo: o aparelho precisa ter
