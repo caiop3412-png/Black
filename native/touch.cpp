@@ -1642,7 +1642,7 @@ bool LoadSkin(std::vector<uint8_t>& rgba, uint32_t& w, uint32_t& h) {
     return true;
 }
 
-void SetSkinTexture(uint64_t texture) { g_skin_texture = reinterpret_cast<ImTextureID>(uintptr_t(texture)); }
+void SetSkinTexture(uint64_t texture) { g_skin_texture = ImTextureID(texture); }
 
 // the controls over the screen to drag where they go, Done or Cancel in the bar at the top, Android's back cancels
 void EditLayout() {

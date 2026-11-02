@@ -3304,7 +3304,11 @@ void VulkanBackend::UploadSkin() {
     Transition(skin_, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     std::lock_guard lock(app::UiLock());
     VkDescriptorSet set = ImGui_ImplVulkan_AddTexture(linear_, skin_.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-    touch::SetSkinTexture(uint64_t(reinterpret_cast<uintptr_t>(set)));
+    // a descriptor set is a pointer on 64-bit ABIs and a plain 64-bit integer on 32-bit ones: copy the 8 bytes
+    static_assert(sizeof(set) == sizeof(uint64_t), "VkDescriptorSet is not 64 bits wide");
+    uint64_t handle;
+    std::memcpy(&handle, &set, sizeof handle);
+    touch::SetSkinTexture(handle);
 }
 
 void VulkanBackend::ReleaseOldTextures() {
