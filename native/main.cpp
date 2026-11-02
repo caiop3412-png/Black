@@ -127,8 +127,9 @@ const char* kModes[] = {"fullscreen", "borderless", "windowed"};
 // the defaults a settings file was written under: 2 has the frame rate unlimited and vsync off, which a file from
 // before takes once, its player's own choices kept from then on
 constexpr int kDefaults = 2;
-// overlay_defaults 1: the fps counter is on; a file from before takes it once
-constexpr int kOverlayDefaults = 1;
+// phone_defaults 1: 400p, fps counter, bloom and reload blur off, dynamic resolution on; a file from before takes them
+// until its player saves a setting of their own, which keeps what they chose from then on
+constexpr int kPhoneDefaults = 1;
 
 std::filesystem::path File() { return ExeDir() / kGame.settings; }
 
@@ -143,7 +144,7 @@ toml::table Table() {
                   {"anisotropic_filtering", int64_t(s.aniso)},
                   {"join_ip", s.join_ip},
                   {"defaults", int64_t(kDefaults)},
-                  {"overlay_defaults", int64_t(kOverlayDefaults)}};
+                  {"phone_defaults", int64_t(kPhoneDefaults)}};
     for (const Option& o : kGame.options) {
         if (o.flag) t.insert(o.key, *o.flag);
         else t.insert(o.key, int64_t(*o.value));
@@ -152,8 +153,9 @@ toml::table Table() {
     return t;
 }
 
-// a phone renders the console's frame at about 720p unless the settings say otherwise
-constexpr uint32_t kFirstRunRenderPercent = 67;
+// a phone renders the console's frame at about 400p (percent of the screen's height, 55% of 720 is 396) unless the
+// settings say otherwise
+constexpr uint32_t kFirstRunRenderPercent = 55;
 
 void PhoneFrameDefaults(Settings& s) {
     s.fps_cap = 0;
@@ -198,9 +200,18 @@ void Load() {
         if (o.flag) *o.flag = t[o.key].value_or(*o.flag);
         else *o.value = t[o.key].value_or(*o.value);
     }
-    if (t["overlay_defaults"].value_or(int64_t(0)) < kOverlayDefaults)
-        for (const Option& o : kGame.options)
-            if (o.flag && std::string_view(o.key) == "fps_counter") *o.flag = true;
+    if (t["phone_defaults"].value_or(int64_t(0)) < kPhoneDefaults) {
+        s.render_percent = kFirstRunRenderPercent;
+        for (const Option& o : kGame.options) {
+            std::string_view k = o.key;
+            if (o.flag) {
+                if (k == "fps_counter" || k == "dynamic_resolution") *o.flag = true;
+                else if (k == "bloom" || k == "reload_blur") *o.flag = false;
+            } else if (k == "dynamic_target_fps") *o.value = 30;
+            else if (k == "dynamic_min_percent") *o.value = 40;
+            else if (k == "dynamic_max_percent") *o.value = 55;
+        }
+    }
     if (kGame.load) kGame.load(&t);
 }
 

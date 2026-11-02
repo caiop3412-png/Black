@@ -142,6 +142,18 @@ int StepTable(const uint32_t (&values)[N], uint32_t& value, int step) {
     return i;
 }
 
+// a sensitivity in tenths, 0.1 to 10.0: by 0.1 up to 5.0, by 0.5 from there; wraps over the ends
+int StepSensitivity(int tenths, int step) {
+    tenths = std::clamp(tenths, 1, 100);
+    for (int n = step < 0 ? -step : step; n > 0; n--) {
+        int inc = (step > 0 ? tenths >= 50 : tenths > 50) ? 5 : 1;
+        tenths += step > 0 ? inc : -inc;
+        if (tenths > 100) tenths = 1;
+        else if (tenths < 1) tenths = 100;
+    }
+    return tenths;
+}
+
 // value clamped to lo to hi, stepped by inc through the values StepIndex wraps over
 int StepRange(int value, int lo, int hi, int inc, int step) {
     int count = (hi - lo) / inc + 1;
@@ -536,17 +548,17 @@ void StepInputRow(int id, int step, char (&text)[64]) {
             std::snprintf(text, sizeof(text), "%s", kAudioOutputNames[StepTable(kAudioOutputs, o.audio_output, step)]);
             break;
         case kSensitivity:
-            // 0.1 to 5.0 in steps of 0.1
+            // 0.1 to 10.0, see StepSensitivity
             if (step) {
-                int tenths = StepRange(int(std::lround(o.mouse_sensitivity * 10.0f)), 1, 50, 1, step);
+                int tenths = StepSensitivity(int(std::lround(o.mouse_sensitivity * 10.0f)), step);
                 o.mouse_sensitivity = float(tenths) / 10.0f;
             }
             std::snprintf(text, sizeof(text), "%.1f", o.mouse_sensitivity);
             break;
         case kTouchSensitivity:
-            // as the mouse's: 0.1 to 5.0 in steps of 0.1
+            // as the mouse's: 0.1 to 10.0, see StepSensitivity
             if (step) {
-                int tenths = StepRange(int(std::lround(o.touch_sensitivity * 10.0f)), 1, 50, 1, step);
+                int tenths = StepSensitivity(int(std::lround(o.touch_sensitivity * 10.0f)), step);
                 o.touch_sensitivity = float(tenths) / 10.0f;
             }
             std::snprintf(text, sizeof(text), "%.1f", o.touch_sensitivity);

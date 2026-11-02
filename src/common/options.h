@@ -18,18 +18,18 @@ struct Options {
     // a look over the frame: 0 none, 1 and 2 a CRT (light, strong), 3 sharpen, 4 vibrant, 5 noir, 6 sepia,
     // 7 night vision, 8 VHS
     uint32_t screen_filter = 0;
-    bool reload_blur = true;
-    bool bloom = true;  // the glow added over bright parts of the frame (native/vulkan.cpp)
+    bool reload_blur = false;  // phone port: off, one pass less per reload
+    bool bloom = false;  // the glow added over bright parts of the frame (native/vulkan.cpp); off here, one full size draw less
     bool fog = true;
     uint32_t anti_aliasing = 0;  // 0 off, 1 FXAA as the frame goes onto the screen, 2 SSAA: twice the resolution
     bool hdr = false;  // a tone map that brings back the colours the console's overbright look burns out
     uint32_t draw_distance = 1;  // times the game's LOD and draw distances
     // the render resolution follows the frame rate (native/dynamic_resolution.cpp): down when it falls under the
     // target, up again once it holds the target this many seconds; within min and max, percent of the screen's
-    bool dynamic_resolution = false;
-    uint32_t dynamic_target_fps = 60;
+    bool dynamic_resolution = true;  // phone port: on, the resolution never goes above the render resolution (max)
+    uint32_t dynamic_target_fps = 30;
     uint32_t dynamic_min_percent = 40;
-    uint32_t dynamic_max_percent = 100;
+    uint32_t dynamic_max_percent = 55;
     uint32_t dynamic_hold = 5;
     float mouse_sensitivity = 1.0f;
     float touch_sensitivity = 1.0f;  // the touch screen's look, apart from the mouse's
