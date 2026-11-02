@@ -4,6 +4,18 @@
 # clang has no unsigned __int128 on 32-bit targets. The SDK uses it twice, both for the high half of a 64 x 64 bit
 # multiply; both are rewritten with four 32 x 32 -> 64 bit products (same result).
 
+set(_SDK32_DIR "${CMAKE_CURRENT_LIST_DIR}")
+
+# replace `from` by `to` exactly once in the text held by variable `var` (caller's scope); fatal if `from` is missing
+function(_sdk32_replace var from to what)
+    string(FIND "${${var}}" "${from}" at)
+    if(at EQUAL -1)
+        message(FATAL_ERROR "patch_sdk32: '${from}' not found in ${what}; the SDK changed")
+    endif()
+    string(REPLACE "${from}" "${to}" out "${${var}}")
+    set(${var} "${out}" PARENT_SCOPE)
+endfunction()
+
 # the high 64 bits of x * y, as statements that define `hi` (needs x, y as uint64_t)
 set(_MULHI_BODY "uint64_t a0 = uint32_t(@X@), a1 = @X@ >> 32, b0 = uint32_t(@Y@), b1 = @Y@ >> 32;
     uint64_t p00 = a0 * b0, p01 = a0 * b1, p10 = a1 * b0, p11 = a1 * b1;
@@ -80,6 +92,33 @@ function(patch_sdk32 SDK_DIR)
         endif()
     else()
         message(WARNING "patch_sdk32: ${ws} not found, the SDK layout changed")
+    endif()
+
+    # kernel/memory.cpp + memory.h: the guest address space is one flat 4 GB mmap at host base + guest address, which a
+    # 32-bit process cannot hold (size_t(1 << 32) is 0 here). The guest only uses five ranges, so map just those: a host
+    # base is searched where all five land on free addresses (guest address + base wraps modulo 2^32 on a 32-bit host).
+    # The user range, the system pool and the stacks are cut down to what a 64 MB console needs.
+    set(memh "${SDK_DIR}/runtime/kernel/memory.h")
+    set(memc "${SDK_DIR}/runtime/kernel/memory.cpp")
+    if(EXISTS "${memh}" AND EXISTS "${memc}")
+        file(READ "${memc}" ctext)
+        if(NOT ctext MATCHES "ReserveGuestSpace")
+            file(READ "${memh}" htext)
+            _sdk32_replace(htext "kUserHigh = 0x7FFE0000" "kUserHigh = 0x10000000" "memory.h")
+            _sdk32_replace(htext "kSystemSize = 0x10000000" "kSystemSize = 0x04000000" "memory.h")
+            _sdk32_replace(htext "kStackSize = 0x10000000" "kStackSize = 0x04000000" "memory.h")
+            file(WRITE "${memh}" "${htext}")
+
+            _sdk32_replace(ctext
+                "void* p = mmap(reinterpret_cast<void*>(0x100000000ull), size, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);"
+                "void* p = ReserveGuestSpace(size);" "memory.cpp")
+            file(READ "${_SDK32_DIR}/guest_space32.inc" reserve)
+            _sdk32_replace(ctext "bool Init() {" "${reserve}\nbool Init() {" "memory.cpp")
+            file(WRITE "${memc}" "${ctext}")
+            message(STATUS "patch_sdk32: guest memory mapped in five ranges")
+        endif()
+    else()
+        message(WARNING "patch_sdk32: kernel/memory.{h,cpp} not found, the SDK layout changed")
     endif()
 
     # anything else in the SDK that needs 128 bits fails to build on its own; say where
