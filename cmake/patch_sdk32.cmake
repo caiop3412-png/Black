@@ -49,6 +49,39 @@ function(patch_sdk32 SDK_DIR)
     uint64_t q = hi >> (a[4] & 0xFF);"
         "RtlExtendedMagicDivide in rtl.cpp")
 
+    # harness/compat/winsock2.h: SOCKET is int, and on 32-bit bionic socklen_t is int too, so the shims below have the
+    # same signature as the libc functions they wrap (getsockname, getpeername, accept, getsockopt) and call
+    # themselves forever, or (recvfrom) make the call ambiguous. Give them their own names, like select().
+    set(ws "${SDK_DIR}/harness/compat/winsock2.h")
+    if(EXISTS "${ws}")
+        file(READ "${ws}" wtext)
+        if(NOT wtext MATCHES "ws_getsockname")
+            set(wnew "${wtext}")
+            foreach(pair
+                    "inline int getsockname(SOCKET|inline int ws_getsockname(SOCKET"
+                    "inline int getpeername(SOCKET|inline int ws_getpeername(SOCKET"
+                    "inline ssize_t recvfrom(SOCKET|inline ssize_t ws_recvfrom(SOCKET"
+                    "inline SOCKET accept(SOCKET|inline SOCKET ws_accept(SOCKET"
+                    "inline int getsockopt(SOCKET|inline int ws_getsockopt(SOCKET")
+                string(REPLACE "|" ";" pair "${pair}")
+                list(GET pair 0 from)
+                list(GET pair 1 to)
+                string(FIND "${wnew}" "${from}" at)
+                if(at EQUAL -1)
+                    message(FATAL_ERROR "patch_sdk32: '${from}' not found in ${ws}; look at the socket shims")
+                endif()
+                string(REPLACE "${from}" "${to}" wnew "${wnew}")
+            endforeach()
+            string(APPEND wnew "\n// armv7: the shims above keep their own names; callers in the runtime get them through these\n"
+                "#define getsockname ws_getsockname\n#define getpeername ws_getpeername\n#define recvfrom ws_recvfrom\n"
+                "#define accept ws_accept\n#define getsockopt ws_getsockopt\n")
+            file(WRITE "${ws}" "${wnew}")
+            message(STATUS "patch_sdk32: Winsock shims renamed in winsock2.h")
+        endif()
+    else()
+        message(WARNING "patch_sdk32: ${ws} not found, the SDK layout changed")
+    endif()
+
     # anything else in the SDK that needs 128 bits fails to build on its own; say where
     file(GLOB_RECURSE others "${SDK_DIR}/runtime/*.cpp" "${SDK_DIR}/runtime/*.h")
     foreach(f IN LISTS others)
