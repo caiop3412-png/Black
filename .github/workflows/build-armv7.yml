@@ -1,0 +1,67 @@
+# Black Android, armeabi-v7a fork. Run it by hand: Actions > Build armv7 > Run workflow.
+# It decrypts YOUR default.xbe (ci/default.xbe.enc, made by tools/preparar_xbe.sh), recompiles it, builds the APK
+# for 32-bit ARM and leaves it as an artifact. No release is published: keep this repository private.
+#
+# Secret: XBE_KEY (the passphrase you used in tools/preparar_xbe.sh).
+name: Build armv7
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  build:
+    runs-on: windows-2025
+    timeout-minutes: 360
+    env:
+      NDK_VERSION: 28.2.13676358
+      CMAKE_VERSION: 3.31.6
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+
+      - name: Android SDK packages
+        shell: cmd
+        run: call "%ANDROID_HOME%\cmdline-tools\latest\bin\sdkmanager.bat" --install "platforms;android-34" "ndk;%NDK_VERSION%" "cmake;%CMAKE_VERSION%" >nul
+
+      - name: Decrypt default.xbe
+        shell: bash
+        env:
+          XBE_KEY: ${{ secrets.XBE_KEY }}
+        run: |
+          if [ -z "$XBE_KEY" ]; then echo "::error::The XBE_KEY secret is missing"; exit 1; fi
+          mkdir -p assets
+          key="$RUNNER_TEMP/xbe.key"
+          printf '%s' "$XBE_KEY" > "$key"
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in ci/default.xbe.enc -out assets/default.xbe -pass "file:$key"
+          rm -f "$key"
+          sha1sum assets/default.xbe
+
+      - name: Version
+        shell: bash
+        run: echo "GRADLE_ARGS=-PversionCode=${{ github.run_number }} -PversionName=1.0-armv7" >> "$GITHUB_ENV"
+
+      - name: Build
+        shell: cmd
+        run: call build.bat
+
+      - name: Check the ABI
+        shell: bash
+        run: |
+          unzip -l app/build/outputs/apk/release/app-release.apk | grep "lib/"
+          unzip -l app/build/outputs/apk/release/app-release.apk | grep -q "lib/armeabi-v7a/libmain.so" || { echo "::error::no armeabi-v7a libmain.so in the APK"; exit 1; }
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: Black-armv7
+          path: app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 7
