@@ -107,6 +107,11 @@ function(patch_sdk32 SDK_DIR)
             _sdk32_replace(htext "kUserHigh = 0x7FFE0000" "kUserHigh = 0x10000000" "memory.h")
             _sdk32_replace(htext "kSystemSize = 0x10000000" "kSystemSize = 0x04000000" "memory.h")
             _sdk32_replace(htext "kStackSize = 0x10000000" "kStackSize = 0x04000000" "memory.h")
+            # the system pool and the stacks are the runtime's own, nothing in the guest depends on where they sit. put
+            # them right after the user range so user + system + stacks are one 384 MB block and only three ranges are
+            # left to find free: that block, the contiguous window and the write combine window.
+            _sdk32_replace(htext "kSystemBase = 0xB0000000" "kSystemBase = 0x10000000" "memory.h")
+            _sdk32_replace(htext "kStackBase = 0xD0000000" "kStackBase = 0x14000000" "memory.h")
             file(WRITE "${memh}" "${htext}")
 
             _sdk32_replace(ctext
@@ -115,7 +120,7 @@ function(patch_sdk32 SDK_DIR)
             file(READ "${_SDK32_DIR}/guest_space32.inc" reserve)
             _sdk32_replace(ctext "bool Init() {" "${reserve}\nbool Init() {" "memory.cpp")
             file(WRITE "${memc}" "${ctext}")
-            message(STATUS "patch_sdk32: guest memory mapped in five ranges")
+            message(STATUS "patch_sdk32: guest memory mapped in three ranges")
         endif()
     else()
         message(WARNING "patch_sdk32: kernel/memory.{h,cpp} not found, the SDK layout changed")
